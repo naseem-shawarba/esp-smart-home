@@ -19,6 +19,9 @@ namespace credentials
   static const char *KEY_AP_SSID = "OTA_SSID";
   static const char *KEY_AP_PASS = "OTA_PASSWORD";
   static const char *KEY_MAC = "newMACAddress";
+  static const char *KEY_MESH = "meshMode";
+  static const char *KEY_TG_FALLBACK = "tgFallback";
+  static const char *KEY_MASTER_MAC = "masterMac";
 
   WifiCreds wifi()
   {
@@ -88,7 +91,43 @@ namespace credentials
     return v.length() ? v : String(DEFAULT_AP_PASSWORD);
   }
 
-  bool isConfigured()
+  bool isMeshMode()
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, true);
+    bool v = prefs.getBool(KEY_MESH, false);
+    prefs.end();
+    return v;
+  }
+
+  bool telegramFallbackEnabled()
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, true);
+    bool v = prefs.getBool(KEY_TG_FALLBACK, false);
+    prefs.end();
+    return v;
+  }
+
+  bool hasMasterMac()
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, true);
+    bool present = prefs.getBytesLength(KEY_MASTER_MAC) == 6;
+    prefs.end();
+    return present;
+  }
+
+  void masterMac(uint8_t out[6])
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, true);
+    prefs.getBytes(KEY_MASTER_MAC, out, 6);
+    prefs.end();
+  }
+
+  // Enough WiFi + Telegram to reach the internet (used standalone and as mesh fallback).
+  static bool hasWifiAndTelegram()
   {
     WifiCreds c = wifi();
     if (c.ssid.length() == 0)
@@ -104,6 +143,20 @@ namespace credentials
       return false;
     }
     return botToken().length() > 0 && chatId().length() > 0;
+  }
+
+  bool isConfigured()
+  {
+    if (isMeshMode())
+    {
+      if (!hasMasterMac())
+      {
+        return false;
+      }
+      // If the Telegram fallback is on, it also needs WiFi + Telegram to work.
+      return telegramFallbackEnabled() ? hasWifiAndTelegram() : true;
+    }
+    return hasWifiAndTelegram();
   }
 
   void setWifi(const WifiCreds &creds)
@@ -150,6 +203,23 @@ namespace credentials
     Preferences prefs;
     prefs.begin(NVS_NAMESPACE, false);
     prefs.remove(KEY_MAC);
+    prefs.end();
+  }
+
+  void setMesh(bool enabled, bool telegramFallback)
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putBool(KEY_MESH, enabled);
+    prefs.putBool(KEY_TG_FALLBACK, telegramFallback);
+    prefs.end();
+  }
+
+  void setMasterMac(const uint8_t macBytes[6])
+  {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putBytes(KEY_MASTER_MAC, macBytes, 6);
     prefs.end();
   }
 }

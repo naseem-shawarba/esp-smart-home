@@ -32,7 +32,13 @@ namespace credentials
   String apSsid();     // OTA_SSID, or DEFAULT_AP_SSID when unset
   String apPassword(); // OTA_PASSWORD, or DEFAULT_AP_PASSWORD when unset
 
-  // True when there's enough to operate (WiFi + Telegram configured).
+  // ESP-NOW mesh mode
+  bool isMeshMode();               // report to a master over ESP-NOW instead of Telegram
+  bool telegramFallbackEnabled();  // on ESP-NOW failure, fall back to WiFi+Telegram
+  bool hasMasterMac();
+  void masterMac(uint8_t out[6]);  // the master's MAC (ESP-NOW peer)
+
+  // True when there's enough to operate for the current mode.
   bool isConfigured();
 
   // Writes (used by the credentials form)
@@ -41,4 +47,6 @@ namespace credentials
   void setAp(const String &ssid, const String &password);
   void setMac(const uint8_t mac[6]);
   void clearMac();
+  void setMesh(bool enabled, bool telegramFallback);
+  void setMasterMac(const uint8_t mac[6]);
 }

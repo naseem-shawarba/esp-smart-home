@@ -10,7 +10,7 @@
 #include "settings.h"
 #include "credentials.h"
 #include "rgb_led.h"
-#include "connectivity.h"
+#include "notifier.h"
 #include "web_config.h"
 #include "web_credentials.h"
 
@@ -91,8 +91,7 @@ namespace web_portal
       }
       if (digitalRead(portalPin))
       {
-        connectivity::connectWiFi();
-        connectivity::sendMessage("Exiting portal mode");
+        notifier::alarm(espnow_protocol::AlarmEvent::PortalEntered, false, false, 0);
         break;
       }
       dnsServer.processNextRequest();

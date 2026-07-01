@@ -41,6 +41,14 @@ namespace web_credentials
     return true;
   }
 
+  static String formatMac(const uint8_t mac[6])
+  {
+    char buf[18];
+    snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return String(buf);
+  }
+
   static String buildForm()
   {
     credentials::WifiCreds w = credentials::wifi();
@@ -84,6 +92,27 @@ namespace web_credentials
     html += "<label>Setup-AP SSID<br><input name='apSsid' value='" + credentials::apSsid() + "'></label><br><br>";
     html += "<label>Setup-AP password<br><input type='password' name='apPass' placeholder='(unchanged)'></label><br><br>";
     html += "<label>MAC override (optional, e.g. AA:BB:CC:DD:EE:FF)<br><input name='mac' placeholder='(unchanged)'></label><br><br>";
+
+    // ---- ESP-NOW mesh mode ----
+    html += "<hr>";
+    html += "<label><input type='checkbox' name='meshMode' value='1'";
+    if (credentials::isMeshMode())
+      html += " checked";
+    html += "> Mesh mode (report to a master over ESP-NOW)</label><br><br>";
+
+    String masterVal;
+    if (credentials::hasMasterMac())
+    {
+      uint8_t master[6];
+      credentials::masterMac(master);
+      masterVal = formatMac(master);
+    }
+    html += "<label>Master MAC<br><input name='masterMac' value='" + masterVal + "' placeholder='AA:BB:CC:DD:EE:FF'></label><br><br>";
+
+    html += "<label><input type='checkbox' name='tgFallback' value='1'";
+    if (credentials::telegramFallbackEnabled())
+      html += " checked";
+    html += "> Telegram fallback if the master can't be reached</label><br><br>";
 
     html += "<input type='submit' value='Save' style='width:100%;padding:8px;'>";
     html += "</form>";
@@ -130,6 +159,17 @@ namespace web_credentials
       if (parseMac(srv->arg("mac"), macBytes))
       {
         credentials::setMac(macBytes);
+      }
+    }
+
+    // Mesh mode: checkboxes are only present in the POST when ticked.
+    credentials::setMesh(srv->hasArg("meshMode"), srv->hasArg("tgFallback"));
+    if (srv->hasArg("masterMac") && srv->arg("masterMac").length() > 0)
+    {
+      uint8_t masterBytes[6];
+      if (parseMac(srv->arg("masterMac"), masterBytes))
+      {
+        credentials::setMasterMac(masterBytes);
       }
     }
 

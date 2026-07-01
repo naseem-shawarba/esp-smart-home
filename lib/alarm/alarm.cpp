@@ -6,8 +6,9 @@
 #include "config.h"
 #include "settings.h"
 #include "rgb_led.h"
-#include "connectivity.h"
 #include "buzzer.h"
+#include "notifier.h"
+#include "espnow_protocol.h"
 
 namespace alarm_system
 {
@@ -154,15 +155,6 @@ namespace alarm_system
   }
 
   
-  static String formatDuration(unsigned long ms)
-  {
-    if (ms >= 60000UL)
-    {
-      return String(ms / 60000UL) + " min";
-    }
-    return String(ms / 1000UL) + " sec";
-  }
-
   void toggle()
   {
     isAlarmActive = !isAlarmActive;
@@ -173,22 +165,11 @@ namespace alarm_system
 
     if (isAlarmActive)
     {
-
-      unsigned long bufferMs = settings::get().postAlarmActivationDelayMs;
-      String msg = "Alarm activated.";
-      if (bufferMs > 0)
-      {
-        msg += " Arming in " + formatDuration(bufferMs) + ".";
-      }
-
-      
-      msg += digitalRead(doorPin) ? "Door is open" : "Door is closed";
-
-      connectivity::connectWiFi();
-      connectivity::sendMessage(msg);
+      // Report activation (notifier formats the "arming in X" text / ESP-NOW event).
+      notifier::alarm(espnow_protocol::AlarmEvent::Armed, true, digitalRead(doorPin), 0);
 
       // Grace period after arming; the door state is reported when it elapses.
-      schedulePhase(Phase::Grace, bufferMs);
+      schedulePhase(Phase::Grace, settings::get().postAlarmActivationDelayMs);
     }
     else
     {
@@ -207,8 +188,7 @@ namespace alarm_system
 
     // Still armed -> notify, sound the buzzer, then cooldown (in deep sleep).
     alarmTriggerCount += 1;
-    connectivity::connectWiFi();
-    connectivity::sendMessage("The Door has been opened");
+    notifier::alarm(espnow_protocol::AlarmEvent::Triggered, true, true, alarmTriggerCount);
     if (!settings::isStealth())
     {
       buzzer::beep(5000, 2500);
@@ -231,8 +211,7 @@ namespace alarm_system
     case Phase::Grace:
     {
       bool doorOpen = digitalRead(doorPin);
-      connectivity::connectWiFi();
-      connectivity::sendMessage(doorOpen ? "Door is open" : "Door is closed");
+      notifier::alarm(espnow_protocol::AlarmEvent::DoorState, isAlarmActive, doorOpen, alarmTriggerCount);
       cancelPhase();
       break;
     }
@@ -240,9 +219,8 @@ namespace alarm_system
     case Phase::Cooldown:
       if (alarmTriggerCount >= maxAlarmTriggers)
       {
-        connectivity::connectWiFi();
-        connectivity::sendMessage("The alarm has been temporarily deactivated");
         temporarilyDisableAlarm = true;
+        notifier::alarm(espnow_protocol::AlarmEvent::TempDisabled, isAlarmActive, false, alarmTriggerCount);
         schedulePhase(Phase::TempDisabled, settings::get().temporarilyDisableAlarmDelayMs);
       }
       else
@@ -254,8 +232,7 @@ namespace alarm_system
     case Phase::TempDisabled:
       temporarilyDisableAlarm = false;
       alarmTriggerCount = 0;
-      connectivity::connectWiFi();
-      connectivity::sendMessage("The alarm has been re-activated after temporal deactivation");
+      notifier::alarm(espnow_protocol::AlarmEvent::ReArmed, isAlarmActive, false, 0);
       cancelPhase();
       break;
 

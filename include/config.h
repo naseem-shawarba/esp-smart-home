@@ -30,6 +30,12 @@
 #define DEFAULT_AP_PASSWORD "configure" // must be >= 8 chars for WPA2
 
 // =========================
+// ESP-NOW mesh mode
+// =========================
+#define MESH_CHANNEL 1 // node + master must share one WiFi channel for ESP-NOW
+#define MESH_NODE_ID 1 // logical id for this node in the master's view
+
+// =========================
 // Buzzer settings
 // =========================
 const int buzzerChannel = 0;    // PWM channel 0
