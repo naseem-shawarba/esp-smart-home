@@ -12,7 +12,6 @@ namespace settings
     unsigned long postAlarmActivationDelayMs;     // wait after arming before checking the door
     unsigned long postAlarmTriggerDelayMs;        // cooldown after a trigger
     unsigned long temporarilyDisableAlarmDelayMs; // how long a temporary disable lasts
-    unsigned long portalDurationMs;               // how long the web portal stays open
   };
 
   void begin();                  // load from NVS (DEFAULT_* fallbacks)

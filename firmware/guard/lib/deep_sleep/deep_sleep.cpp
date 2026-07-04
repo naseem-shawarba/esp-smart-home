@@ -5,7 +5,7 @@
 #include <driver/rtc_io.h>
 #include "config.h"
 #include "alarm.h"
-#include "web_portal.h"
+#include "alarm_portal.h"
 
 namespace deep_sleep
 {
@@ -28,7 +28,7 @@ namespace deep_sleep
       {
         alarm_system::cancel();
       }
-      web_portal::enter();
+      alarm_portal::open();
     }
 
     if (wakeupPinStatus & PIN_BITMASK(wakeupGpioToggle))

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h> // for GPIO_NUM_* and Arduino types
+#include <Arduino.h>
 
 // =========================
 // Pin Definitions (GPIO)
@@ -23,19 +23,6 @@
 // #define builtInLedPin 2
 
 // =========================
-// Setup Access Point (bootstrap; non-secret, same for every device)
-// Used when no AP credentials are stored yet, so a freshly-flashed device is reachable.
-// =========================
-#define DEFAULT_AP_SSID "Smart"
-#define DEFAULT_AP_PASSWORD "configure" // must be >= 8 chars for WPA2
-
-// =========================
-// ESP-NOW mesh mode
-// =========================
-#define MESH_CHANNEL 1 // node + master must share one WiFi channel for ESP-NOW
-#define MESH_NODE_ID 1 // logical id for this node in the master's view
-
-// =========================
 // Buzzer settings
 // =========================
 const int buzzerChannel = 0;    // PWM channel 0
@@ -56,4 +43,3 @@ const unsigned long DEFAULT_alarmDeactivationLedBlinkMs = 500;                  
 const unsigned long DEFAULT_postAlarmActivationDelayMs = 1000UL * 60 * 30;          // 30 minutes after alarm activation
 const unsigned long DEFAULT_postAlarmTriggerDelayMs = 1000UL * 60 * 20;             // 20 minutes after alarm activation
 const unsigned long DEFAULT_temporarilyDisableAlarmDelayMs = 1000UL * 60 * 60 * 24; // 1 Day
-const unsigned long DEFAULT_portalDurationMs = 1000UL * 60 * 5;                      // 5 minutes

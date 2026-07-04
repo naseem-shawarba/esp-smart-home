@@ -56,8 +56,6 @@ namespace web_config
             String(s.postAlarmTriggerDelayMs / MS_PER_MIN) + "'></label><br><br>";
     html += "<label>Temporary-disable period (hours)<br><input type='number' min='1' name='tmpDis' value='" +
             String(s.temporarilyDisableAlarmDelayMs / MS_PER_HOUR) + "'></label><br><br>";
-    html += "<label>Portal window (minutes)<br><input type='number' min='1' name='portalDur' value='" +
-            String(s.portalDurationMs / MS_PER_MIN) + "'></label><br><br>";
 
     html += "<input type='submit' value='Save' style='width:100%;padding:8px;'>";
     html += "</form>";
@@ -81,7 +79,6 @@ namespace web_config
     s.postAlarmActivationDelayMs = readScaled("actDelay", MS_PER_MIN, s.postAlarmActivationDelayMs);
     s.postAlarmTriggerDelayMs = readScaled("trigDelay", MS_PER_MIN, s.postAlarmTriggerDelayMs);
     s.temporarilyDisableAlarmDelayMs = readScaled("tmpDis", MS_PER_HOUR, s.temporarilyDisableAlarmDelayMs);
-    s.portalDurationMs = readScaled("portalDur", MS_PER_MIN, s.portalDurationMs);
 
     settings::save(s);
 
@@ -91,7 +88,7 @@ namespace web_config
     html += "<body style='font-family:Verdana,sans-serif;font-size:14px;'>";
     html += "<div style='max-width:420px;padding:20px;border-radius:10px;border:solid 2px #e0e0e0;margin:20px auto;text-align:center;'>";
     html += "<div style='font-size:18px;font-weight:bold;margin-bottom:8px;'>Settings saved</div>";
-    html += "<p>Stealth and timing changes apply immediately. The portal window length applies to the <b>next</b> portal session.</p>";
+    html += "<p>Stealth and timing changes apply immediately.</p>";
     html += "<a href='/'>&larr; Menu</a>";
     html += "</div></body></html>";
     srv->send(200, "text/html", html);

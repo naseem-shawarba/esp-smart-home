@@ -14,7 +14,6 @@ namespace settings
   static const char *KEY_ACT_DELAY = "actDelay";
   static const char *KEY_TRIG_DELAY = "trigDelay";
   static const char *KEY_TMP_DIS = "tmpDis";
-  static const char *KEY_PORTAL_DUR = "portalDur"; // NVS key string kept for compatibility
 
   static Settings current;
 
@@ -28,7 +27,6 @@ namespace settings
     current.postAlarmActivationDelayMs = preferences.getULong(KEY_ACT_DELAY, DEFAULT_postAlarmActivationDelayMs);
     current.postAlarmTriggerDelayMs = preferences.getULong(KEY_TRIG_DELAY, DEFAULT_postAlarmTriggerDelayMs);
     current.temporarilyDisableAlarmDelayMs = preferences.getULong(KEY_TMP_DIS, DEFAULT_temporarilyDisableAlarmDelayMs);
-    current.portalDurationMs = preferences.getULong(KEY_PORTAL_DUR, DEFAULT_portalDurationMs);
     preferences.end();
   }
 
@@ -52,7 +50,6 @@ namespace settings
     preferences.putULong(KEY_ACT_DELAY, s.postAlarmActivationDelayMs);
     preferences.putULong(KEY_TRIG_DELAY, s.postAlarmTriggerDelayMs);
     preferences.putULong(KEY_TMP_DIS, s.temporarilyDisableAlarmDelayMs);
-    preferences.putULong(KEY_PORTAL_DUR, s.portalDurationMs);
     preferences.end();
 
     current = s; // takes effect immediately

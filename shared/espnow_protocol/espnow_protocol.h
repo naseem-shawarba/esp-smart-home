@@ -51,7 +51,7 @@ namespace espnow_protocol
     Heartbeat,     // periodic "I'm alive"
   };
 
-  struct __attribute__((packed)) AlarmMsg
+  struct __attribute__((packed)) GuardMsg
   {
     Header header;
     uint8_t armed;        // 0/1

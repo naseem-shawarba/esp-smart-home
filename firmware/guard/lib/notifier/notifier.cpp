@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include "settings.h"
-#include "credentials.h"
+#include "device_config.h"
 #include "connectivity.h"
 #include "mesh.h"
 
@@ -54,13 +54,13 @@ namespace notifier
 
   void alarm(AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount)
   {
-    if (credentials::isMeshMode())
+    if (device_config::isMeshMode())
     {
       if (mesh::sendAlarm(event, armed, doorOpen, triggerCount))
       {
-        return; // delivered to the master
+        return; // delivered to the orchestrator
       }
-      if (!credentials::telegramFallbackEnabled())
+      if (!device_config::telegramFallbackEnabled())
       {
         Serial.println("Mesh send failed; Telegram fallback disabled");
         return;

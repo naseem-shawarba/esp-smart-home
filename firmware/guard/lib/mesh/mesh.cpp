@@ -4,8 +4,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
-#include "config.h"
-#include "credentials.h"
+#include "device_config.h"
 
 namespace mesh
 {
@@ -15,7 +14,7 @@ namespace mesh
   static volatile bool sendOk = false;
   static bool initialized = false;
 
-  // Persisted across deep sleep so the master sees a monotonic sequence.
+  // Persisted across deep sleep so the orchestrator sees a monotonic sequence.
   RTC_DATA_ATTR static uint32_t seqCounter = 0;
 
   static void onSent(const uint8_t *mac, esp_now_send_status_t status)
@@ -32,6 +31,7 @@ namespace mesh
     }
 
     WiFi.mode(WIFI_STA);
+    device_config::applyMacOverride(); // match WiFi/ESP-NOW identity before ESP-NOW starts
     esp_wifi_set_channel(MESH_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
     if (esp_now_init() != ESP_OK)
@@ -42,7 +42,7 @@ namespace mesh
     esp_now_register_send_cb(onSent);
 
     esp_now_peer_info_t peer = {};
-    credentials::masterMac(peer.peer_addr);
+    device_config::orchestratorMac(peer.peer_addr);
     peer.channel = MESH_CHANNEL;
     peer.encrypt = false;
     esp_now_add_peer(&peer);
@@ -54,13 +54,13 @@ namespace mesh
   {
     begin();
 
-    uint8_t master[6];
-    credentials::masterMac(master);
+    uint8_t orchestratorMac[6];
+    device_config::orchestratorMac(orchestratorMac);
 
-    AlarmMsg m = {};
+    GuardMsg m = {};
     m.header.version = PROTOCOL_VERSION;
     m.header.deviceType = (uint8_t)DeviceType::AlarmNode;
-    m.header.nodeId = MESH_NODE_ID;
+    m.header.nodeId = device_config::nodeId();
     m.header.event = (uint8_t)event;
     m.header.seq = ++seqCounter;
     m.header.uptimeMs = millis();
@@ -75,7 +75,7 @@ namespace mesh
       sendDone = false;
       sendOk = false;
 
-      if (esp_now_send(master, (uint8_t *)&m, sizeof(m)) != ESP_OK)
+      if (esp_now_send(orchestratorMac, (uint8_t *)&m, sizeof(m)) != ESP_OK)
       {
         delay(20);
         continue;

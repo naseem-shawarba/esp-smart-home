@@ -298,31 +298,62 @@ Editable from the web portal; defaults live in `include/config.h` and are stored
 
 ---
 
-## Build & flash
+## Repository layout
 
-This is a [PlatformIO](https://platformio.org/) project (Espressif32 / Arduino framework,
-arduino-esp32 2.0.17).
+A monorepo: a shared library core consumed by independently-buildable per-device firmwares.
 
-```bash
-# Build
-pio run
-
-# Build + flash over USB
-pio run -t upload
-
-# Serial monitor (115200 baud)
-pio device monitor
+```
+shared/                shared across devices
+  espnow_protocol/     ESP-NOW message contract (+ MESH_CHANNEL)
+  connectivity/        WiFi (PSK/Enterprise) + Telegram
+  credentials/         NVS credentials + setup-AP defaults + isConfigured()
+firmware/
+  alarm/               the alarm node (this README's main subject)
+  orchestrator/              ESP-NOW gateway (receives sensor messages, takes actions)
+  weather/             weather-sensor node
 ```
 
-The compiled application is at `.pio/build/esp32dev/firmware.bin` — this is the file you
+Each firmware is its own [PlatformIO](https://platformio.org/) project (Espressif32 / Arduino,
+arduino-esp32 2.0.17) and pulls in the shared libs via `lib_extra_dirs = ../../shared`. A given
+firmware only compiles the shared libs it actually includes.
+
+## Build & flash
+
+Build a device by entering its folder:
+
+```bash
+cd firmware/alarm    # or firmware/orchestrator, firmware/weather
+pio run              # build
+pio run -t upload    # build + flash over USB
+pio device monitor   # serial monitor (115200 baud)
+```
+
+The alarm's compiled app is at `firmware/alarm/.pio/build/esp32dev/firmware.bin` — the file you
 upload via the web portal's `/update` page for over-the-air updates.
 
 ---
 
-## Firmware architecture
+## Firmware architecture (alarm node)
 
-Code is split into focused PlatformIO libraries under `lib/`, each a small namespace of
-free functions; `src/main.cpp` just wires them together in `setup()`.
+The alarm firmware is split into focused PlatformIO libraries; `firmware/alarm/src/main.cpp`
+just wires them together in `setup()`. Shared libs live in `shared/`.
+
+| Module | Responsibility |
+|--------|----------------|
+| `config.h` (alarm `include/`) | Pin map, default timings, buzzer settings, mesh node id |
+| `espnow_protocol` *(shared)* | ESP-NOW message layout + link channel |
+| `credentials` *(shared)* | NVS `credentials` (WiFi PSK/Enterprise, Telegram, setup-AP, mesh, optional MAC) + `isConfigured()` |
+| `connectivity` *(shared)* | WiFi (PSK or WPA2-Enterprise) + Telegram messaging, with a connect timeout |
+| `rgb_led` | RGB status LED (incl. stealth gating and sleep-safe off via GPIO hold) |
+| `buzzer` | Piezo buzzer tones (stealth-aware) |
+| `mesh` | ESP-NOW sender to the orchestrator (mesh mode) |
+| `notifier` | Mode-aware reporting: mesh (ESP-NOW) vs standalone (Telegram), with fallback |
+| `web_portal` | Temporary SoftAP + web server + captive-portal DNS; hosts the menu + OTA |
+| `web_credentials` | The credentials form routes (`/credentials`, `/credentials/save`) |
+| `web_config` | The settings form routes (`/settings`, `/settings/save`) |
+| `settings` | Runtime-configurable settings, persisted in NVS |
+| `alarm` | Alarm state, arm/disarm, status display, and the timed **phase** machine (grace / cooldown / temporary-disable) backed by RTC memory |
+| `deep_sleep` | Wake-cause dispatch + phase-aware deep-sleep configuration |
 
 | Module | Responsibility |
 |--------|----------------|

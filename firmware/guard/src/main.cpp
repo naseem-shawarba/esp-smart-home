@@ -6,7 +6,7 @@
 #include "rgb_led.h"
 #include "buzzer.h"
 #include "alarm.h"
-#include "web_portal.h"
+#include "alarm_portal.h"
 #include "deep_sleep.h"
 
 // =========================
@@ -21,7 +21,7 @@ void setup()
   rgb_led::begin();
   buzzer::begin();
   alarm_system::begin();
-  web_portal::begin();
+  pinMode(portalPin, INPUT); // portal-enter / exit button
 
   // Startup indicator
 
@@ -34,7 +34,7 @@ void setup()
   {
     // Fresh device / missing credentials -> open the setup portal so it can be provisioned.
     Serial.println("No credentials configured; entering setup portal");
-    web_portal::enter();
+    alarm_portal::open();
   }
   else
   {
