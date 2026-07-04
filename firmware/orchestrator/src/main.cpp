@@ -1,5 +1,7 @@
 // ESP-NOW orchestrator / gateway.
-// Receives sensor messages (see shared/espnow_protocol) and acts on them
+// Receives sensor messages (see shared/espnow_protocol) and acts on them:
+// - weather readings are POSTed as JSON to a server endpoint
+// - alarm events are logged (Telegram notifications / siren activation still TODO)
 
 #include <Arduino.h>
 #include <math.h>
@@ -8,6 +10,8 @@
 #include <HTTPClient.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "espnow_protocol.h"
 #include "credentials.h"
 #include "device_config.h"
@@ -24,6 +28,8 @@ using namespace espnow_protocol;
 #ifndef PORTAL_PIN
 #define PORTAL_PIN -1
 #endif
+
+static QueueHandle_t weatherQueue = nullptr;
 
 static void logHeader(const uint8_t *mac, const Header &h)
 {
@@ -52,13 +58,41 @@ static void onReceive(const uint8_t *mac, const uint8_t *data, int len)
   {
   case DeviceType::AlarmNode:
   {
-    // TO-DO
+    if (len < (int)sizeof(GuardMsg))
+    {
+      return;
+    }
+    GuardMsg m;
+    memcpy(&m, data, sizeof(m));
+    logHeader(mac, h);
+    Serial.printf("ALARM event=%u armed=%u door=%u triggers=%u\n",
+                  h.event, m.armed, m.doorOpen, m.triggerCount);
+    // TODO: take action — send Telegram notification, sound a siren.
     break;
   }
 
   case DeviceType::WeatherNode:
   {
-    // TO-DO
+    if (len < (int)sizeof(WeatherMsg))
+    {
+      return;
+    }
+    WeatherMsg m;
+    memcpy(&m, data, sizeof(m));
+    logHeader(mac, h);
+    if (isnan(m.humidityPct)) // BMP280 doesn't read humidity
+    {
+      Serial.printf("WEATHER %.1fC %.0fhPa (no humidity)\n", m.temperatureC, m.pressureHPa);
+    }
+    else
+    {
+      Serial.printf("WEATHER %.1fC %.0f%% %.0fhPa\n", m.temperatureC, m.humidityPct, m.pressureHPa);
+    }
+
+    if (weatherQueue)
+    {
+      xQueueSend(weatherQueue, &m, 0); // drop if the queue is full
+    }
     break;
   }
 
@@ -67,6 +101,52 @@ static void onReceive(const uint8_t *mac, const uint8_t *data, int len)
     Serial.printf("UNKNOWN deviceType=%u len=%d\n", h.deviceType, len);
     break;
   }
+}
+
+static void postReading(const WeatherMsg &m)
+{
+  String url = weather_config::postUrl();
+  if (url.length() == 0)
+  {
+    return;
+  }
+  if (!wifi_link::isConnected() && !wifi_link::connect())
+  {
+    Serial.println("POST skipped: WiFi unavailable");
+    return;
+  }
+
+  String body = "{";
+  body += "\"temperature\":" + String(m.temperatureC, 2);
+  if (!isnan(m.humidityPct))
+  {
+    body += ",\"humidity\":" + String(m.humidityPct, 2);
+  }
+  body += ",\"pressure\":" + String(m.pressureHPa, 2);
+  body += "}";
+
+  WiFiClientSecure secure;
+  WiFiClient plain;
+  HTTPClient http;
+  bool begun;
+  if (url.startsWith("https"))
+  {
+    secure.setInsecure();
+    begun = http.begin(secure, url);
+  }
+  else
+  {
+    begun = http.begin(plain, url);
+  }
+  if (!begun)
+  {
+    Serial.println("POST failed: http.begin()");
+    return;
+  }
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(body);
+  Serial.printf("POST -> %d\n", code);
+  http.end();
 }
 
 
@@ -132,6 +212,8 @@ void setup()
   pinMode(BUILTIN_LED_PIN, OUTPUT);
 #endif
 
+  weatherQueue = xQueueCreate(8, sizeof(WeatherMsg));
+
   if (!credentials::isConfigured())
   {
     Serial.println("Not configured; opening setup portal");
@@ -154,7 +236,16 @@ void loop()
     openPortal();
     ESP.restart();
   }
-  // TO-DO Take actions e.g. send post requests, send telegram messages or notify another ESP32.
+
+    // TO-DO Take actions e.g. send post requests, send telegram messages or notify another ESP32.
+
+
+  WeatherMsg m;
+  while (weatherQueue && xQueueReceive(weatherQueue, &m, 0) == pdTRUE)
+  {
+    postReading(m);
+  }
+
 
   delay(20);
 }
