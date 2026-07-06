@@ -8,17 +8,17 @@
 
 namespace wifi_link
 {
-  bool connect(unsigned long timeoutMs)
+  void beginStation()
   {
-    // Fully restart the WiFi stack for a clean join.
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    delay(100);
     WiFi.mode(WIFI_STA);
-
+    WiFi.setAutoReconnect(false); // we manage association manually (channel hopping)
+    WiFi.persistent(false);
     // Same identity for WiFi and ESP-NOW (no-op when no custom MAC is set).
     device_config::applyMacOverride();
+  }
 
+  bool associate(unsigned long timeoutMs)
+  {
     credentials::WifiCreds w = credentials::wifi();
     if (w.type == credentials::WifiType::Enterprise)
     {
@@ -52,6 +52,21 @@ namespace wifi_link
     }
     Serial.println("\nWiFi connect timed out");
     return false;
+  }
+
+  void disconnect()
+  {
+    WiFi.disconnect(false); // drop the AP link, keep the STA driver (and ESP-NOW) up
+  }
+
+  bool connect(unsigned long timeoutMs)
+  {
+    // Fully restart the WiFi stack for a clean join (tears down ESP-NOW).
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+    beginStation();
+    return associate(timeoutMs);
   }
 
   bool isConnected()

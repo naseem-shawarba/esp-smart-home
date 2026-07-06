@@ -20,6 +20,8 @@ namespace connectivity
 
   bool sendMessage(const String &message)
   {
+    client.setInsecure(); // needed for the HTTPS Telegram connection (callers may skip connectWiFi)
+
     delay(1000);
     String token = credentials::botToken();
     String chat = credentials::chatId();
