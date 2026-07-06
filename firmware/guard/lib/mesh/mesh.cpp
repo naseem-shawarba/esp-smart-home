@@ -50,7 +50,8 @@ namespace mesh
     initialized = true;
   }
 
-  bool sendAlarm(AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount)
+  bool sendAlarm(AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount,
+                 unsigned long detailMs)
   {
     begin();
 
@@ -68,6 +69,7 @@ namespace mesh
     m.armed = armed ? 1 : 0;
     m.doorOpen = doorOpen ? 1 : 0;
     m.triggerCount = triggerCount;
+    m.detailMs = detailMs;
 
     const int maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; attempt++)

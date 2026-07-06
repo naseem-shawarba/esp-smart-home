@@ -20,17 +20,16 @@ namespace notifier
   }
 
   // Human-readable text for the Telegram path (standalone or mesh fallback).
-  static String eventText(AlarmEvent event, bool doorOpen)
+  static String eventText(AlarmEvent event, bool doorOpen, unsigned long detailMs)
   {
     switch (event)
     {
     case AlarmEvent::Armed:
     {
-      unsigned long buffer = settings::get().postAlarmActivationDelayMs;
       String s = "Alarm activated.";
-      if (buffer > 0)
+      if (detailMs > 0)
       {
-        s += " Arming in " + formatDuration(buffer) + ".";
+        s += " Arming in " + formatDuration(detailMs) + ".";
       }
       s += doorOpen ? " Door is open." : " Door is closed.";
       return s;
@@ -54,11 +53,13 @@ namespace notifier
 
   void alarm(AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount)
   {
+    unsigned long detailMs = settings::get().postAlarmActivationDelayMs;
+
     if (device_config::isMeshMode())
     {
-      if (mesh::sendAlarm(event, armed, doorOpen, triggerCount))
+      if (mesh::sendAlarm(event, armed, doorOpen, triggerCount, detailMs))
       {
-        return; // delivered to the orchestrator
+        return; // delivered to the orchestrator, which renders + relays the text
       }
       if (!device_config::telegramFallbackEnabled())
       {
@@ -69,6 +70,6 @@ namespace notifier
     }
 
     connectivity::connectWiFi();
-    connectivity::sendMessage(eventText(event, doorOpen));
+    connectivity::sendMessage(eventText(event, doorOpen, detailMs));
   }
 }

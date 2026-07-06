@@ -7,7 +7,10 @@ namespace mesh
 {
   void begin(); // WIFI_STA + fixed channel + esp_now_init + add orchestrator peer (MAC from NVS)
 
-  // Send one alarm event. Returns true only if the ESP-NOW send-status callback
-  // reported delivery (peer ACKed); false lets the caller fall back to Telegram.
-  bool sendAlarm(espnow_protocol::AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount);
+  // Send one alarm event. detailMs carries an event-specific duration (e.g. the
+  // arming countdown for Armed) so the orchestrator can render the same text.
+  // Returns true only if the ESP-NOW send-status callback reported delivery (peer
+  // ACKed); false lets the caller fall back to Telegram.
+  bool sendAlarm(espnow_protocol::AlarmEvent event, bool armed, bool doorOpen, uint8_t triggerCount,
+                 unsigned long detailMs);
 }

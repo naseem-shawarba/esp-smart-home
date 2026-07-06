@@ -57,6 +57,7 @@ namespace espnow_protocol
     uint8_t armed;        // 0/1
     uint8_t doorOpen;     // 0/1
     uint8_t triggerCount; // triggers since arming
+    uint32_t detailMs;    // event-specific duration (e.g. arming countdown for Armed); 0 if n/a
   };
 
   // ---- Weather node (example of a second sensor type) ----
