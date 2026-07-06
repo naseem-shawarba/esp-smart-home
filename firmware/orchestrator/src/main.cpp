@@ -16,6 +16,8 @@
 #include "credentials.h"
 #include "device_config.h"
 #include "wifi_link.h"
+#include "connectivity.h"
+#include "alarm_text.h"
 #include "web_portal.h"
 #include "weather_config.h"
 
@@ -30,6 +32,7 @@ using namespace espnow_protocol;
 #endif
 
 static QueueHandle_t weatherQueue = nullptr;
+static QueueHandle_t guardQueue = nullptr;
 
 static void logHeader(const uint8_t *mac, const Header &h)
 {
@@ -67,7 +70,11 @@ static void onReceive(const uint8_t *mac, const uint8_t *data, int len)
     logHeader(mac, h);
     Serial.printf("ALARM event=%u armed=%u door=%u triggers=%u\n",
                   h.event, m.armed, m.doorOpen, m.triggerCount);
-    // TODO: take action — send Telegram notification, sound a siren.
+    
+    if (guardQueue)
+    {
+      xQueueSend(guardQueue, &m, 0); // drop if the queue is full
+    }
     break;
   }
 
@@ -103,16 +110,12 @@ static void onReceive(const uint8_t *mac, const uint8_t *data, int len)
   }
 }
 
+// POST one reading. Assumes the caller has already brought WiFi online.
 static void postReading(const WeatherMsg &m)
 {
   String url = weather_config::postUrl();
   if (url.length() == 0)
   {
-    return;
-  }
-  if (!wifi_link::isConnected() && !wifi_link::connect())
-  {
-    Serial.println("POST skipped: WiFi unavailable");
     return;
   }
 
@@ -147,6 +150,12 @@ static void postReading(const WeatherMsg &m)
   int code = http.POST(body);
   Serial.printf("POST -> %d\n", code);
   http.end();
+}
+
+static void notifyGuard(const GuardMsg &m)
+{
+  String text = alarm_text::eventText((AlarmEvent)m.header.event, m.doorOpen, m.detailMs);
+  connectivity::sendMessage(text);
 }
 
 
@@ -213,6 +222,7 @@ void setup()
 #endif
 
   weatherQueue = xQueueCreate(8, sizeof(WeatherMsg));
+  guardQueue = xQueueCreate(8, sizeof(GuardMsg));
 
   if (!credentials::isConfigured())
   {
@@ -220,13 +230,60 @@ void setup()
     openPortal();
   }
 
-  wifi_link::connect();
+  wifi_link::beginStation();
+  esp_wifi_set_channel(MESH_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
   Serial.print("Orchestrator MAC (enter this in each alarm node's portal): ");
   Serial.println(WiFi.macAddress());
-  Serial.printf("ESP-NOW channel: %d\n", WiFi.channel());
+  Serial.printf("Listening for ESP-NOW on channel %d\n", MESH_CHANNEL);
 
   startEspNow();
+}
+
+static void flushQueues()
+{
+  bool hasWeather = weatherQueue && uxQueueMessagesWaiting(weatherQueue) > 0;
+  bool hasGuard = guardQueue && uxQueueMessagesWaiting(guardQueue) > 0;
+  if (!hasWeather && !hasGuard)
+  {
+    return;
+  }
+
+  // Weather POSTing may be disabled (no URL); Telegram relay just needs creds.
+  bool postWeather = hasWeather && weather_config::postUrl().length() > 0;
+  bool needOnline = postWeather || hasGuard;
+
+  if (!needOnline)
+  {
+    // Only weather, with POSTing disabled -> drop the backlog without WiFi.
+    WeatherMsg drop;
+    while (xQueueReceive(weatherQueue, &drop, 0) == pdTRUE)
+    {
+    }
+    return;
+  }
+
+  if (!wifi_link::associate())
+  {
+    Serial.println("Uplink deferred: WiFi unavailable"); // keep queued, retry next loop
+    return;
+  }
+
+  WeatherMsg wm;
+  while (weatherQueue && xQueueReceive(weatherQueue, &wm, 0) == pdTRUE)
+  {
+    postReading(wm);
+  }
+
+  GuardMsg gm;
+  while (guardQueue && xQueueReceive(guardQueue, &gm, 0) == pdTRUE)
+  {
+    notifyGuard(gm);
+  }
+
+  wifi_link::disconnect();
+  esp_wifi_set_channel(MESH_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  Serial.println("Back to ESP-NOW listening");
 }
 
 void loop()
@@ -237,15 +294,7 @@ void loop()
     ESP.restart();
   }
 
-    // TO-DO Take actions e.g. send post requests, send telegram messages or notify another ESP32.
-
-
-  WeatherMsg m;
-  while (weatherQueue && xQueueReceive(weatherQueue, &m, 0) == pdTRUE)
-  {
-    postReading(m);
-  }
-
+  flushQueues();
 
   delay(20);
 }
