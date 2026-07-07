@@ -228,6 +228,7 @@ void setup()
   {
     Serial.println("Not configured; opening setup portal");
     openPortal();
+    ESP.restart();
   }
 
   wifi_link::beginStation();
