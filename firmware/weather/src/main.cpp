@@ -1,21 +1,27 @@
 // ESP-Guard weather node (ESP32-C3).
-// Auto-detects a BMP280/BME280, sends the reading to the Orchestrator over ESP-NOW
-// The ESP#@ shows it on an OLED,
-// then deep-sleeps.
-// Notify-only: there is NO Telegram/direct-POST fallback.
+// Auto-detects a BMP280/BME280, delivers the reading, optionally shows it on an
+// OLED, then deep-sleeps. Two delivery modes (set by the portal's mesh checkbox):
+//   - Mesh (device_config::isMeshMode()): send the reading to the Orchestrator
+//     over ESP-NOW; the Orchestrator does the uploading.
+//   - Standalone: connect to WiFi and POST the reading directly to the server
+//     URL (weather_config). No orchestrator involved.
 //
-// First boot (or with no Orchestrator MAC provisioned) opens a setup portal — reuse
-// the shared portal: credentials (mesh -> Orchestrator MAC), device settings, OTA,
-// and the "Settings" page. Set WEATHER_SLEEP_SEC=0 to stay awake (loop) instead
-// of deep-sleeping, e.g. as a bench display.
+// The setup portal opens on first boot / on demand, or whenever the ACTIVE mode
+// isn't configured (mesh: no orchestrator MAC; standalone: no POST URL or WiFi).
+// It reuses the shared portal: credentials (WiFi + mesh/orchestrator MAC), device
+// settings, OTA, and the "Settings" (POST URL) page. Set WEATHER_SLEEP_SEC=0 to
+// stay awake (loop) instead of deep-sleeping, e.g. as a bench display.
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include "espnow_protocol.h"
 #include "credentials.h"
 #include "device_config.h"
+#include "wifi_link.h"
 #include "web_portal.h"
 #include "weather_config.h"
 #include "weather_sensor.h"
@@ -108,7 +114,16 @@ static void oledReading(const weather_sensor::Reading &r, bool sent)
   }
   String t = "Temp: " + String(r.temperatureC, 1) + " C";
   String p = "Pres: " + String(r.pressureHPa, 1) + " hPa";
-  String s = sent ? "Sent to Orchestrator" : "Send FAILED";
+  String s = "";
+  if (device_config::isMeshMode())
+  {
+    s = sent ? "Sent to Orchestrator" : "Failed to send Orch";
+  }
+  else
+  {
+    s = sent ? "Sent to Server" : "Failed to send Server";
+  }
+
   oledShow(t, p, s);
 #else
   (void)r;
@@ -184,11 +199,58 @@ static bool sendReading(const weather_sensor::Reading &r)
   return false;
 }
 
+static bool postReading(const weather_sensor::Reading &r)
+{
+  String url = weather_config::postUrl();
+  if (url.length() == 0)
+  {
+    return false;
+  }
+  if (!wifi_link::connect())
+  {
+    Serial.println("WiFi connect failed; skipping upload");
+    return false;
+  }
+
+  String body = "{";
+  body += "\"temperature\":" + String(r.temperatureC, 2);
+  if (!isnan(r.humidityPct))
+  {
+    body += ",\"humidity\":" + String(r.humidityPct, 2);
+  }
+  body += ",\"pressure\":" + String(r.pressureHPa, 2);
+  body += "}";
+
+  WiFiClientSecure secure;
+  WiFiClient plain;
+  HTTPClient http;
+  bool begun;
+  if (url.startsWith("https"))
+  {
+    secure.setInsecure();
+    begun = http.begin(secure, url);
+  }
+  else
+  {
+    begun = http.begin(plain, url);
+  }
+  if (!begun)
+  {
+    Serial.println("POST failed: http.begin()");
+    return false;
+  }
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(body);
+  Serial.printf("POST -> %d\n", code);
+  http.end();
+  return code > 0 && code < 400;
+}
+
 static void tick()
 {
   // Blink blue while the portal is open (stealth-aware via rgb_led).
 #if BUILTIN_LED_PIN >= 0
-    if (millis() % 1500 > 750)
+  if (millis() % 1500 > 750)
   {
     digitalWrite(BUILTIN_LED_PIN, HIGH);
   }
@@ -199,7 +261,6 @@ static void tick()
 #else
   return;
 #endif
-
 }
 
 static bool portalButtonClicked()
@@ -209,7 +270,6 @@ static bool portalButtonClicked()
 #else
   return false;
 #endif
-  
 }
 
 static void openPortal()
@@ -231,7 +291,6 @@ static void deepSleep()
 {
   Serial.printf("Deep sleeping for %d s\n", WEATHER_SLEEP_SEC);
   Serial.flush();
-  
 
 #if WEATHER_OLED
   if (oledReady)
@@ -245,24 +304,42 @@ static void deepSleep()
   esp_deep_sleep_start();
 }
 
+static bool configured()
+{
+  if (device_config::isMeshMode())
+  {
+    return device_config::hasOrchestratorMac();
+  }
+  return weather_config::postUrl().length() > 0 && credentials::hasWifi();
+}
+
+static bool deliver(const weather_sensor::Reading &r)
+{
+  if (device_config::isMeshMode())
+  {
+    return espnowBegin() && sendReading(r);
+  }
+  return postReading(r);
+}
+
 static void reportOnce()
 {
   weather_sensor::Reading r = weather_sensor::read();
-  if (r.valid)
-  {
-    Serial.printf("%s: %.1fC  %.1fhPa", weather_sensor::typeName(), r.temperatureC, r.pressureHPa);
-    if (!isnan(r.humidityPct))
-    {
-      Serial.printf("  %.1f%%", r.humidityPct);
-    }
-    Serial.println();
-  }
-  else
+  if (!r.valid)
   {
     Serial.println("Sensor read failed");
+    oledReading(r, false);
+    return;
   }
 
-  bool sent = sendReading(r);
+  Serial.printf("%s: %.1fC  %.1fhPa", weather_sensor::typeName(), r.temperatureC, r.pressureHPa);
+  if (!isnan(r.humidityPct))
+  {
+    Serial.printf("  %.1f%%", r.humidityPct);
+  }
+  Serial.println();
+
+  bool sent = deliver(r);
   oledReading(r, sent);
 }
 
@@ -296,18 +373,14 @@ void setup()
   bool portalHeld = false;
 #endif
 
-  // Open the setup portal on first run (no orchestrator provisioned) or on demand.
-  if (portalHeld || !credentials::isConfigured())
+  // Open the setup portal on demand, or when the active mode isn't provisioned
+  // (mesh: no orchestrator MAC; standalone: no POST URL / WiFi).
+  if (portalHeld || !configured())
   {
     oledShow("Setup mode", "AP: " + credentials::apSsid());
     Serial.printf("Opening setup portal (AP %s)\n", credentials::apSsid().c_str());
     openPortal();
     ESP.restart(); // re-evaluate cleanly with the new config
-  }
-
-  if (!espnowBegin())
-  {
-    deepSleep(); // nothing we can do; try again next wake
   }
 
   reportOnce();
