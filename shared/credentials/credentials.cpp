@@ -75,8 +75,8 @@ namespace credentials
     return v.length() ? v : String(DEFAULT_AP_PASSWORD);
   }
 
-  // Enough WiFi + Telegram to reach the internet (used standalone and as mesh fallback).
-  static bool hasWifiAndTelegram()
+  // Complete WiFi credentials for the selected type (enough to associate).
+  bool hasWifi()
   {
     WifiCreds c = wifi();
     if (c.ssid.length() == 0)
@@ -91,6 +91,12 @@ namespace credentials
     {
       return false;
     }
+    return true;
+  }
+
+  // Telegram bot token + chat id both set.
+  bool hasTelegram()
+  {
     return botToken().length() > 0 && chatId().length() > 0;
   }
 
@@ -103,9 +109,9 @@ namespace credentials
         return false;
       }
       // If the Telegram fallback is on, it also needs WiFi + Telegram to work.
-      return device_config::telegramFallbackEnabled() ? hasWifiAndTelegram() : true;
+      return device_config::telegramFallbackEnabled() ? (hasWifi() && hasTelegram()) : true;
     }
-    return hasWifiAndTelegram();
+    return hasWifi() && hasTelegram();
   }
 
   void setWifi(const WifiCreds &creds)

@@ -18,10 +18,10 @@ namespace credentials
   {
     WifiType type;
     String ssid;
-    String password;     // PSK
-    String eapIdentity;  // Enterprise
-    String eapUsername;  // Enterprise
-    String eapPassword;  // Enterprise
+    String password;    // PSK
+    String eapIdentity; // Enterprise
+    String eapUsername; // Enterprise
+    String eapPassword; // Enterprise
   };
 
   // Reads
@@ -30,6 +30,9 @@ namespace credentials
   String chatId();
   String apSsid();     // OTA_SSID, or DEFAULT_AP_SSID when unset
   String apPassword(); // OTA_PASSWORD, or DEFAULT_AP_PASSWORD when unset
+
+  bool hasWifi();
+  bool hasTelegram();
 
   // True when there's enough to operate for the current mode (mesh topology lives in
   // device_config; this reads it to decide which secrets are required).
