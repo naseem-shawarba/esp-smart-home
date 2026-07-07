@@ -1,11 +1,16 @@
 // ESP-Guard simple guard node (ESP32-C3) battery door sensor.
 //
-// Deep-sleeps until the reed switch reports the door opened, sends one
-// AlarmEvent::Triggered to the orchestrator over ESP-NOW, then sleeps again.
-// Notify-only: there is NO Telegram/WiFi fallback (the orchestrator does the
-// notifications). First boot (or with no orchestrator MAC provisioned) opens the
-// shared setup portal to set the orchestrator MAC + node id (mesh fields),
-// device settings and OTA.
+// Deep-sleeps until the reed switch reports the door opened, delivers one
+// AlarmEvent::Triggered, then sleeps again. Two delivery modes (set by the
+// portal's mesh checkbox):
+//   - Mesh (device_config::isMeshMode()): send to the orchestrator over ESP-NOW;
+//     the orchestrator does the Telegram notification.
+//   - Standalone: connect to WiFi and send the Telegram message directly.
+//
+// The setup portal opens on first boot / on demand (BOOT button), or whenever
+// the ACTIVE mode isn't configured (mesh: no orchestrator MAC; standalone: no
+// WiFi + Telegram). It reuses the shared portal: credentials (WiFi/Telegram +
+// mesh/orchestrator MAC), device settings, OTA.
 //
 // Wiring: reed switch between DOOR_PIN and GND. An external pull resistor to the
 // "closed" level is recommended for reliable deep-sleep wake (the internal
@@ -19,6 +24,9 @@
 #include "espnow_protocol.h"
 #include "credentials.h"
 #include "device_config.h"
+#include "wifi_link.h"
+#include "connectivity.h"
+#include "alarm_text.h"
 #include "web_portal.h"
 
 #if GUARD_OLED
@@ -35,6 +43,10 @@ using namespace espnow_protocol;
 
 #ifndef PORTAL_PIN
 #define PORTAL_PIN -1
+#endif
+
+#ifndef BUILTIN_LED_PIN
+#define BUILTIN_LED_PIN -1
 #endif
 
 // How long to wait for the door to close before sleeping, so a still-open door
@@ -168,12 +180,62 @@ static bool sendTriggered()
   return false;
 }
 
+static bool sendTelegram()
+{
+  if (!wifi_link::connect())
+  {
+    Serial.println("WiFi connect failed; cannot notify");
+    oledShow("ALARM TRIGGERED!", "WiFi FAILED", "");
+    return false;
+  }
+  String text = alarm_text::eventText(AlarmEvent::Triggered, /*doorOpen=*/true, /*detailMs=*/0);
+  bool ok = connectivity::sendMessage(text);
+  oledShow("ALARM TRIGGERED!", ok ? "Telegram sent" : "Telegram FAILED", "");
+  return ok;
+}
+
+static bool notifyTriggered()
+{
+  if (device_config::isMeshMode())
+  {
+    return espnowBegin() && sendTriggered();
+  }
+  return sendTelegram();
+}
+
+static bool configured()
+{
+  if (device_config::isMeshMode())
+  {
+    return device_config::hasOrchestratorMac();
+  }
+  return credentials::hasWifi() && credentials::hasTelegram();
+}
+
+static void tick()
+{
+#if BUILTIN_LED_PIN >= 0
+  digitalWrite(BUILTIN_LED_PIN, (millis() % 1500 > 750) ? HIGH : LOW);
+#endif
+}
+
+static bool portalButtonClicked()
+{
+#if PORTAL_PIN >= 0
+  return digitalRead(PORTAL_PIN) == LOW;
+#else
+  return false;
+#endif
+}
+
 static void openPortal()
 {
   web_portal::Options opts;
   opts.deviceName = device_config::name(); // defaults to "Simple Guard"
   opts.durationMs = device_config::portalWindowMs();
   opts.showMeshFields = true; // set the orchestrator MAC + mesh mode here
+  opts.onTick = tick;
+  opts.shouldExit = portalButtonClicked;
   web_portal::run(opts);
 }
 
@@ -207,10 +269,11 @@ void setup()
   pinMode(DOOR_PIN, INPUT_PULLUP);
 #if PORTAL_PIN >= 0
   pinMode(PORTAL_PIN, INPUT_PULLUP);
-  bool portalHeld = digitalRead(PORTAL_PIN) == LOW;
-#else
-  bool portalHeld = false;
 #endif
+#if BUILTIN_LED_PIN >= 0
+  pinMode(BUILTIN_LED_PIN, OUTPUT);
+#endif
+  bool portalHeld = portalButtonClicked();
 
 #if GUARD_OLED
 
@@ -224,8 +287,7 @@ void setup()
 
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
 
-  // First run (no orchestrator provisioned) or button held -> open the setup portal.
-  if (portalHeld || !device_config::hasOrchestratorMac())
+  if (portalHeld || !configured())
   {
     oledShow("Setup mode", "AP: " + credentials::apSsid());
     Serial.printf("Opening setup portal (AP %s)\n", credentials::apSsid().c_str());
@@ -237,10 +299,7 @@ void setup()
   if (cause == ESP_SLEEP_WAKEUP_GPIO)
   {
     Serial.println("Woke on door open");
-    if (espnowBegin())
-    {
-      sendTriggered();
-    }
+    notifyTriggered();
   }
   else
   {
