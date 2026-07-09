@@ -18,6 +18,7 @@ namespace weather_sensor
     Unknown = 0,
     BMP280 = 1, // temperature + pressure (no humidity)
     BME280 = 2, // temperature + pressure + humidity
+    AHT10 = 3, // temperature + humidity (no pressure)
   };
 
   struct Reading

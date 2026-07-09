@@ -112,8 +112,24 @@ static void oledReading(const weather_sensor::Reading &r, bool sent)
     oledShow("Sensor error", weather_sensor::typeName());
     return;
   }
+
   String t = "Temp: " + String(r.temperatureC, 1) + " C";
-  String p = "Pres: " + String(r.pressureHPa, 1) + " hPa";
+  String l2 = "";
+
+  // Dynamically swap line 2 depending on what data is available
+  if (!isnan(r.pressureHPa))
+  {
+    l2 = "Pres: " + String(r.pressureHPa, 1) + " hPa";
+  }
+  else if (!isnan(r.humidityPct))
+  {
+    l2 = "Hum:  " + String(r.humidityPct, 1) + " %";
+  }
+  else
+  {
+    l2 = "No Extra Data";
+  }
+
   String s = "";
   if (device_config::isMeshMode())
   {
@@ -124,7 +140,7 @@ static void oledReading(const weather_sensor::Reading &r, bool sent)
     s = sent ? "Sent to Server" : "Failed to send Server";
   }
 
-  oledShow(t, p, s);
+  oledShow(t, l2, s);
 #else
   (void)r;
   (void)sent;
@@ -218,7 +234,11 @@ static bool postReading(const weather_sensor::Reading &r)
   {
     body += ",\"humidity\":" + String(r.humidityPct, 2);
   }
-  body += ",\"pressure\":" + String(r.pressureHPa, 2);
+
+  if (!isnan(r.pressureHPa))
+  {
+    body += ",\"pressure\":" + String(r.pressureHPa, 2);
+  }
   body += "}";
 
   WiFiClientSecure secure;

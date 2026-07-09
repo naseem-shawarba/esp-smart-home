@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_AHTX0.h>
 
 // I2C pins — default to ESP32
 #ifndef WEATHER_SDA
@@ -22,9 +23,9 @@ namespace weather_sensor
   RTC_DATA_ATTR static uint8_t s_type = 0; // Type
   RTC_DATA_ATTR static uint8_t s_addr = 0; // I2C address, 0 = unknown
 
-  // Only the detected sensor is actually begin()ed, the other stays idle.
   static Adafruit_BMP280 bmp;
   static Adafruit_BME280 bme;
+  static Adafruit_AHTX0 aht;
 
   static uint8_t readChipId(uint8_t addr)
   {
@@ -46,6 +47,17 @@ namespace weather_sensor
   {
     s_type = (uint8_t)Type::Unknown;
     s_addr = 0;
+
+    // 1. Try AHT10 first (Commonly at 0x38)
+    Wire.beginTransmission(0x38);
+    if (Wire.endTransmission() == 0)
+    {
+      s_type = (uint8_t)Type::AHT10;
+      s_addr = 0x38;
+      return;
+    }
+
+    // 2. Fallback to Bosch sensors
     const uint8_t addrs[] = {0x76, 0x77};
     for (uint8_t i = 0; i < 2; i++)
     {
@@ -73,6 +85,8 @@ namespace weather_sensor
       return bmp.begin(s_addr);
     case Type::BME280:
       return bme.begin(s_addr);
+    case Type::AHT10:
+      return aht.begin(); // Adafruit library auto-handles 0x38
     default:
       return false;
     }
@@ -105,6 +119,10 @@ namespace weather_sensor
   {
     Reading r = {};
     r.humidityPct = NAN;
+    r.pressureHPa = NAN; // Default to NAN if sensor doesn't support pressure
+
+    sensors_event_t humidity, temp; // Needed for AHT10 Adafruit API
+
     switch ((Type)s_type)
     {
     case Type::BMP280:
@@ -116,6 +134,12 @@ namespace weather_sensor
       r.temperatureC = bme.readTemperature();
       r.pressureHPa = bme.readPressure() / 100.0f;
       r.humidityPct = bme.readHumidity();
+      r.valid = !isnan(r.temperatureC);
+      break;
+    case Type::AHT10:
+      aht.getEvent(&humidity, &temp);
+      r.temperatureC = temp.temperature;
+      r.humidityPct = humidity.relative_humidity;
       r.valid = !isnan(r.temperatureC);
       break;
     default:
@@ -138,6 +162,8 @@ namespace weather_sensor
       return "BMP280";
     case Type::BME280:
       return "BME280";
+    case Type::AHT10:
+      return "AHT10";
     default:
       return "unknown";
     }
