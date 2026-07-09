@@ -38,4 +38,5 @@ namespace weather_sensor
 
   Type type();
   const char *typeName(); // "BMP280" / "BME280" / "unknown"
+  float approximateValue(float value);
 }

@@ -46,6 +46,10 @@ using namespace espnow_protocol;
 #define PORTAL_PIN -1
 #endif
 
+#ifndef USE_APPROX_MODE
+#define USE_APPROX_MODE 0
+#endif
+
 #ifndef BUILTIN_LED_PIN
 #define BUILTIN_LED_PIN -1
 #endif
@@ -66,6 +70,9 @@ static bool oledReady = false;
 
 // Sequence counter persists across deep sleep so the Orchestrator sees a monotonic series.
 RTC_DATA_ATTR static uint32_t seqCounter = 0;
+RTC_DATA_ATTR static float cached_temp = NAN;
+RTC_DATA_ATTR static float cached_hum = NAN;
+RTC_DATA_ATTR static float cached_pres = NAN;
 
 static volatile bool sendDone = false;
 static volatile bool sendOk = false;
@@ -352,15 +359,48 @@ static void reportOnce()
     return;
   }
 
-  Serial.printf("%s: %.1fC  %.1fhPa", weather_sensor::typeName(), r.temperatureC, r.pressureHPa);
-  if (!isnan(r.humidityPct))
-  {
-    Serial.printf("  %.1f%%", r.humidityPct);
-  }
-  Serial.println();
+  float currentCheckTemp = (USE_APPROX_MODE == 1) ? weather_sensor::approximateValue(r.temperatureC) : r.temperatureC;
+  float currentCheckHum = (USE_APPROX_MODE == 1) ? weather_sensor::approximateValue(r.humidityPct) : r.humidityPct;
+  float currentCheckPres = (USE_APPROX_MODE == 1) ? weather_sensor::approximateValue(r.pressureHPa) : r.pressureHPa;
 
-  bool sent = deliver(r);
-  oledReading(r, sent);
+  bool dataHasMutated = false;
+
+  if ( !isnan(currentCheckTemp) && currentCheckTemp != cached_temp)
+  {
+    dataHasMutated = true;
+  }
+  if ( !isnan(currentCheckHum) && currentCheckHum != cached_hum)
+  {
+    dataHasMutated = true;
+  }
+  if ( !isnan(currentCheckPres) && currentCheckPres != cached_pres)
+  {
+    dataHasMutated = true;
+  }
+
+  if (dataHasMutated)
+  {
+    Serial.println("Telemetry state delta detected. Transmitting payload...");
+    weather_sensor::Reading valuesToSend = r;
+    valuesToSend.temperatureC = currentCheckTemp;
+    valuesToSend.humidityPct = currentCheckHum;
+    valuesToSend.pressureHPa = currentCheckPres;
+    bool sent = deliver(valuesToSend);
+
+    oledReading(valuesToSend, sent);
+
+    if (sent)
+    {
+      cached_temp = currentCheckTemp;
+      cached_hum = currentCheckHum;
+      cached_pres = currentCheckPres;
+    }
+  }
+  else
+  {
+    Serial.println("Telemetry inside evaluation baseline thresholds. Skipping upload cycle.");
+    oledReading(r, true);
+  }
 }
 
 void setup()

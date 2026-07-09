@@ -168,4 +168,21 @@ namespace weather_sensor
       return "unknown";
     }
   }
+
+  float approximateValue(float value)
+  {
+    if (isnan(value)) return NAN;
+    
+    float integral = floor(value);
+    float fractional = value - integral;
+    float approxFraction = 0.0f;
+
+    if (fractional >= 0.3f && fractional < 0.7f) {
+      approxFraction = 0.5f;
+    } else if (fractional >= 0.7f) {
+      approxFraction = 1.0f;
+    }
+
+    return integral + approxFraction;
+  }
 }
