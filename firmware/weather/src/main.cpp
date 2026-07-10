@@ -50,6 +50,10 @@ using namespace espnow_protocol;
 #define USE_APPROX_MODE 0
 #endif
 
+#ifndef CACHE_READINGS
+#define CACHE_READINGS 0
+#endif
+
 #ifndef BUILTIN_LED_PIN
 #define BUILTIN_LED_PIN -1
 #endif
@@ -365,20 +369,21 @@ static void reportOnce()
 
   bool dataHasMutated = false;
 
-  if ( !isnan(currentCheckTemp) && currentCheckTemp != cached_temp)
+  // CACHE_READINGS
+  if (CACHE_READINGS == 1 && !isnan(currentCheckTemp) && currentCheckTemp != cached_temp)
   {
     dataHasMutated = true;
   }
-  if ( !isnan(currentCheckHum) && currentCheckHum != cached_hum)
+  if (CACHE_READINGS == 1 && !isnan(currentCheckHum) && currentCheckHum != cached_hum)
   {
     dataHasMutated = true;
   }
-  if ( !isnan(currentCheckPres) && currentCheckPres != cached_pres)
+  if (CACHE_READINGS == 1 && !isnan(currentCheckPres) && currentCheckPres != cached_pres)
   {
     dataHasMutated = true;
   }
 
-  if (dataHasMutated)
+  if (dataHasMutated || CACHE_READINGS == 0)
   {
     Serial.println("Telemetry state delta detected. Transmitting payload...");
     weather_sensor::Reading valuesToSend = r;
@@ -389,7 +394,7 @@ static void reportOnce()
 
     oledReading(valuesToSend, sent);
 
-    if (sent)
+    if (sent && CACHE_READINGS == 1 && dataHasMutated)
     {
       cached_temp = currentCheckTemp;
       cached_hum = currentCheckHum;
