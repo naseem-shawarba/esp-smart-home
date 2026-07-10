@@ -270,9 +270,18 @@ static bool postReading(const weather_sensor::Reading &r)
     Serial.println("POST failed: http.begin()");
     return false;
   }
+  http.setTimeout(5000);
   http.addHeader("Content-Type", "application/json");
   int code = http.POST(body);
   Serial.printf("POST -> %d\n", code);
+  if (code <= 0)
+  {
+    Serial.println("Retrying POST...");
+    delay(1000);
+    code = http.POST(body);
+    Serial.printf("Retry POST -> %d\n", code);
+  }
+
   http.end();
   return code > 0 && code < 400;
 }
