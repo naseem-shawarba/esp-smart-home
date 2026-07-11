@@ -231,6 +231,8 @@ void setup()
     ESP.restart();
   }
 
+  setCpuFrequencyMhz(80);
+
   wifi_link::beginStation();
   esp_wifi_set_channel(MESH_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
@@ -297,5 +299,5 @@ void loop()
 
   flushQueues();
 
-  delay(20);
+  delay(33*1000);
 }
