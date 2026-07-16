@@ -23,15 +23,15 @@ wireless remote, configured over a **web portal**, and updated over-the-air.
 
 | ESP32 GPIO | Connected to | Notes |
 |-----------|--------------|-------|
-| **14** | MC-38 door reed switch (NC) | wake input, 10 kΩ pull-down; **HIGH = open** |
-| **27** | RF receiver → toggle (arm/disarm) | wake input, 10 kΩ pull-down |
-| **4**  | RF receiver → status | wake input, 10 kΩ pull-down |
-| **13** | RF receiver → portal (config/OTA) | wake input, 10 kΩ pull-down |
-| **19 / 22 / 23** | RGB LED R / G / B (via 220 Ω) | PWM status LED (common-cathode) |
-| **21** | Passive piezo buzzer (+) | `tone()`, 2 kHz |
+| **13** | MC-38 door reed switch (NC) | wake input, 10 kΩ pull-down; **HIGH = open** |
+| **26** | RF receiver → toggle (arm/disarm) | wake input, 10 kΩ pull-down |
+| **25**  | RF receiver → status | wake input, 10 kΩ pull-down |
+| **27** | RF receiver → portal (config/OTA) | wake input, 10 kΩ pull-down |
+| **21 / 22 / 23** | RGB LED R / G / B (via 220 Ω) | PWM status LED (common-cathode) |
+| **19** | Passive piezo buzzer (+) | `tone()`, 2 kHz |
 
 Wake uses **EXT1 `ESP_EXT1_WAKEUP_ANY_HIGH`**: every wake input idles LOW (pull-downs) and is
-driven HIGH on its event. GPIO 14/27/4/13 are RTC-capable and non-strapping. Full wiring
+driven HIGH on its event. GPIO 25/26/27/13 are RTC-capable and non-strapping. Full wiring
 diagrams and the RGB colour legend are in the pin map in `include/config.h`.
 
 ## Build & upload

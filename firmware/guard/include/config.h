@@ -8,18 +8,18 @@
 #define PIN_BITMASK(GPIO) (1ULL << GPIO) // 2 ^ GPIO_NUMBER in hex
 
 // Wakeup pins
-#define wakeupGpioDoor GPIO_NUM_14
-#define wakeupGpioStatus GPIO_NUM_4 // gpio 13 - 20
-#define wakeupGpioToggle GPIO_NUM_27
-#define wakeupGpioPortal GPIO_NUM_13
+#define wakeupGpioDoor GPIO_NUM_13
+#define wakeupGpioStatus GPIO_NUM_25
+#define wakeupGpioToggle GPIO_NUM_26
+#define wakeupGpioPortal GPIO_NUM_27
 
 // Input/output pins
 #define bluePin 23
 #define greenPin 22
-#define redPin 19
-#define buzzerPin 21
-#define doorPin 14
-#define portalPin 13
+#define redPin 21
+#define buzzerPin 19
+#define doorPin 13
+#define portalPin 27
 // #define builtInLedPin 2
 
 // =========================
