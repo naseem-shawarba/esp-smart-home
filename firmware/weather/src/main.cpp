@@ -252,6 +252,7 @@ static bool postReading(const weather_sensor::Reading &r)
   }
   body += "}";
 
+  delay(550);
   WiFiClientSecure secure;
   WiFiClient plain;
   HTTPClient http;
@@ -336,6 +337,7 @@ static void deepSleep()
   if (oledReady)
   {
     delay(10000);
+    display.clearDisplay();
     display.ssd1306_command(SSD1306_DISPLAYOFF); // Turns off the OLED glass display completely
   }
 #endif
@@ -421,6 +423,10 @@ void setup()
 {
   Serial.begin(115200);
   delay(200);
+  while (!Serial) {
+    delay(10); // Wait for USB serial port to connect
+  }
+  Serial.println("Hello, ESP32-C3!");
 
   if (!weather_sensor::begin())
   {
