@@ -86,6 +86,7 @@ namespace web_portal
       }
       if (opts.shouldExit && opts.shouldExit())
       {
+        delay(2500);
         break;
       }
       dnsServer.processNextRequest();
