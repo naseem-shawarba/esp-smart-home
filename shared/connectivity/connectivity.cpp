@@ -22,10 +22,10 @@ namespace connectivity
   {
     client.setInsecure(); // needed for the HTTPS Telegram connection (callers may skip connectWiFi)
 
-    delay(1000);
+    delay(100);
     String token = credentials::botToken();
     String chat = credentials::chatId();
-    delay(500);
+    delay(100);
 
     UniversalTelegramBot bot(token.c_str(), client);
     Serial.print("Sending message: ");
@@ -33,7 +33,7 @@ namespace connectivity
 
     bool sent = bot.sendMessage(chat, message, "");
     Serial.println(sent ? "Message sent successfully" : "Message failed");
-    delay(1000);
+    delay(50);
     return sent;
   }
 }

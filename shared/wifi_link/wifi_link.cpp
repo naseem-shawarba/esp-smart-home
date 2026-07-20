@@ -64,9 +64,9 @@ namespace wifi_link
     // Fully restart the WiFi stack for a clean join (tears down ESP-NOW).
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
-    delay(550);
+    delay(210);
     beginStation();
-    delay(550);
+    delay(210);
     return associate(timeoutMs);
   }
 
