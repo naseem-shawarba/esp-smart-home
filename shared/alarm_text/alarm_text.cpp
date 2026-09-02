@@ -19,28 +19,27 @@ namespace alarm_text
     {
     case AlarmEvent::Armed:
     {
-      String s = "Alarm activated.";
+      String s = "🔒 Alarm activated.";
       if (detailMs > 0)
       {
-        s += " Arming in " + formatDuration(detailMs) + ".";
+        s += " ⏳ Arming in " + formatDuration(detailMs) + ".";
       }
-      s += doorOpen ? " Door is open." : " Door is closed.";
+      s += doorOpen ? " 🚪o Door is open." : " 🚪c Door is closed.";
       return s;
     }
     case AlarmEvent::Disarmed:
-      return "Alarm deactivated";
+      return "🔓 Alarm deactivated";
     case AlarmEvent::Triggered:
-      return "The Door has been opened";
+      return "⚠️ The Door has been opened";
     case AlarmEvent::DoorState:
-      return doorOpen ? "Door is open" : "Door is closed";
+      return doorOpen ? "🚪o Door is open" : "🚪c Door is closed";
     case AlarmEvent::TempDisabled:
-      return "The alarm has been temporarily deactivated";
+      return "⏸️ The alarm has been temporarily deactivated";
     case AlarmEvent::ReArmed:
-      return "The alarm has been re-activated after temporal deactivation";
+      return "🔒 The alarm has been re-activated after temporal deactivation";
     case AlarmEvent::PortalEntered:
-      return "Exiting portal mode";
+      return "🌀 Exiting portal mode";
     default:
-      return "Alarm event";
-    }
+      return "🔔 Alarm event";
+    }}
   }
-}
